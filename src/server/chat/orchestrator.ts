@@ -19,7 +19,7 @@ import { getEventStore, getCurrentContextWindowId, getCurrentWindowMessageOption
 import { buildSnapshotFromSessionState } from '../events/folding.js'
 import type { SessionManager } from '../session/index.js'
 import { getToolRegistryForAgent, PathAccessDeniedError } from '../tools/index.js'
-import { buildAgentReminder, buildAgentSmallReminder } from './prompts.js'
+import { buildAgentReminder } from './prompts.js'
 import {
   TurnMetrics,
   createMessageStartEvent,
@@ -275,15 +275,17 @@ export async function runChatTurn(options: OrchestratorOptions): Promise<void> {
 // ============================================================================
 
 /**
- * Inject agent reminder at the start of a turn.
+ * Inject the full agent definition only when entering an agent mode in the
+ * current context window.
  *
  * Scans events from end to find the latest agent message in the current
- * context window. If found with the same agent name → injects a small
- * reminder ("Reminder: you are in 'X' mode."). Otherwise → injects the
- * full agent definition (prompt + tool permissions).
+ * context window. If the same agent is already active, nothing is injected.
+ * If no agent is present in the current window, or the active agent changed,
+ * injects the full agent definition (prompt + tool permissions).
  *
- * Always appends — never skips. Ground truth from events only, no
- * in-memory state tracking.
+ * This keeps normal multi-turn chat free of repeated mode reminders while
+ * preserving re-anchoring after agent switches and context compaction.
+ * Ground truth comes from events only; no in-memory state tracking.
  */
 function injectAgentReminder(sessionId: string, agentDef: AgentDefinition): void {
   const eventStore = getEventStore()
@@ -315,8 +317,13 @@ function injectAgentReminder(sessionId: string, agentDef: AgentDefinition): void
 
   const currentAgentName = agentDef.metadata.name ?? agentDef.metadata.id
 
-  const isSmallReminder = latestAgentName === currentAgentName
-  const content = isSmallReminder ? buildAgentSmallReminder(currentAgentName) : buildAgentReminder(agentDef)
+  // Same agent already anchored in this context window: do not inject an
+  // artificial reminder between the user's message and the assistant reply.
+  if (latestAgentName === currentAgentName) {
+    return
+  }
+
+  const content = buildAgentReminder(agentDef)
 
   const reminderMsgId = crypto.randomUUID()
   const currentWindowMessageOptions = currentWindowId ? { contextWindowId: currentWindowId } : undefined
@@ -334,7 +341,7 @@ function injectAgentReminder(sessionId: string, agentDef: AgentDefinition): void
         type: 'agent',
         name: currentAgentName,
         color: agentDef.metadata.color ?? '#6b7280',
-        kind: isSmallReminder ? 'reminder' : 'definition',
+        kind: 'definition',
       },
     },
   })

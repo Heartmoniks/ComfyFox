@@ -133,7 +133,7 @@ describe('System Reminder Injection', () => {
     expect(smallReminders).toHaveLength(0)
   })
 
-  it('injects small reminder on subsequent turn in same mode', async () => {
+  it('does not inject a reminder on subsequent turn in same mode', async () => {
     const existingEvents = [
       {
         type: 'message.start',
@@ -176,9 +176,7 @@ describe('System Reminder Injection', () => {
     })
 
     const smallReminders = findSmallReminderCalls(eventStore)
-    expect(smallReminders).toHaveLength(1)
-    expect(smallReminders[0]![1].data.content).toContain("Reminder: you are in 'Planner' mode")
-    expect(smallReminders[0]![1].data.metadata.kind).toBe('reminder')
+    expect(smallReminders).toHaveLength(0)
 
     const fullDefs = findFullDefinitionCalls(eventStore, 'Plan Mode')
     expect(fullDefs).toHaveLength(0)
@@ -307,7 +305,7 @@ describe('System Reminder Injection', () => {
     expect(newReminder.content).not.toContain('Reminder:')
   })
 
-  it('injects small reminder on every turn in same mode (not just once)', async () => {
+  it('injects no repeated reminders across multiple turns in the same mode', async () => {
     const eventStore = createEventStore()
     vi.mocked(getEventStore).mockReturnValue(eventStore as any)
     vi.mocked(loadAllAgentsDefault).mockResolvedValue([])
@@ -341,6 +339,6 @@ describe('System Reminder Injection', () => {
     expect(fullDefs).toHaveLength(1)
 
     const smallReminders = findSmallReminderCalls(eventStore)
-    expect(smallReminders).toHaveLength(3)
+    expect(smallReminders).toHaveLength(0)
   })
 })

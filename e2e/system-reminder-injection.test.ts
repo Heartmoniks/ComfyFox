@@ -1,8 +1,8 @@
 /**
  * System Reminder Injection E2E Tests
  *
- * Tests that mode definitions (planner/builder system reminders) are injected
- * the correct number of times during a session with mode switches.
+ * Tests that agent definitions are injected when entering a mode, but are not
+ * repeatedly re-injected on subsequent turns while the same mode stays active.
  *
  * Scenario: planner("hi") -> builder("hi") -> planner("hi")
  * Expected: planner definition injected 2x, builder definition injected 1x
@@ -110,14 +110,14 @@ describe('System Reminder Injection', () => {
   })
 
   describe('Agent reminder kind tracking', () => {
-    it('injects small reminder (kind=reminder) on second message in same mode', async () => {
+    it('does not inject another agent reminder on second message in same mode', async () => {
       client.clearEvents()
 
       // First message in planner mode — should inject full definition (kind=definition)
       await client.send('chat.send', { content: 'hi' })
       await client.waitForChatDone()
 
-      // Second message in planner mode (same mode) — should inject small reminder (kind=reminder)
+      // Second message in planner mode — same agent remains active, so no reminder is injected
       await client.send('chat.send', { content: 'hi again' })
       await client.waitForChatDone()
 
@@ -141,12 +141,8 @@ describe('System Reminder Injection', () => {
           return p.message.metadata?.kind
         })
 
-      // We sent 2 messages in the same mode.
-      // First should be 'definition', second should be 'reminder'.
-      // BUG: both are 'definition' — the scan doesn't find the first agent message.
-      expect(agentMessages).toHaveLength(2)
-      expect(agentMessages[0]).toBe('definition')
-      expect(agentMessages[1]).toBe('reminder')
+      // Two messages in the same mode should produce only the initial full definition.
+      expect(agentMessages).toEqual(['definition'])
     })
   })
 })
